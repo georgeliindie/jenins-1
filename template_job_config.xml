@@ -1,0 +1,307 @@
+<?xml version="1.1" encoding="UTF-8" standalone="no"?><com.tikal.jenkins.plugins.multijob.MultiJobProject plugin="jenkins-multijob-plugin@1.36">
+  <actions/>
+  <description>It's MultiJob Phase TAF flow&#13;
+&#13;
+WC I628</description>
+  <keepDependencies>false</keepDependencies>
+  <properties>
+    <hudson.plugins.jira.JiraProjectProperty plugin="jira@3.9"/>
+    <hudson.plugins.buildblocker.BuildBlockerProperty plugin="build-blocker-plugin@1.7.8">
+      <useBuildBlocker>true</useBuildBlocker>
+      <blockLevel>GLOBAL</blockLevel>
+      <scanQueueFor>DISABLED</scanQueueFor>
+      <blockingJobs>W5_TAF_SQA_004_WC_I628.*</blockingJobs>
+    </hudson.plugins.buildblocker.BuildBlockerProperty>
+    <jenkins.model.BuildDiscarderProperty>
+      <strategy class="hudson.tasks.LogRotator">
+        <daysToKeep>30</daysToKeep>
+        <numToKeep>60</numToKeep>
+        <artifactDaysToKeep>-1</artifactDaysToKeep>
+        <artifactNumToKeep>-1</artifactNumToKeep>
+      </strategy>
+    </jenkins.model.BuildDiscarderProperty>
+    <com.sonyericsson.rebuild.RebuildSettings plugin="rebuild@1.34">
+      <autoRebuild>false</autoRebuild>
+      <rebuildDisabled>false</rebuildDisabled>
+    </com.sonyericsson.rebuild.RebuildSettings>
+    <hudson.model.ParametersDefinitionProperty>
+      <parameterDefinitions>
+        <hudson.model.StringParameterDefinition>
+          <name>JSON_File_Based_Build_Configuration</name>
+          <defaultValue>C:/TAF/W5_TAF_SQA_004_WC_I623.json</defaultValue>
+          <trim>false</trim>
+        </hudson.model.StringParameterDefinition>
+        <hudson.model.StringParameterDefinition>
+          <name>Branch</name>
+          <defaultValue>2020_4.0</defaultValue>
+          <trim>false</trim>
+        </hudson.model.StringParameterDefinition>
+        <hudson.model.StringParameterDefinition>
+          <name>Version</name>
+          <defaultValue>29-ae146700d5438f3a49cc75000f3ba849ae173477</defaultValue>
+          <trim>false</trim>
+        </hudson.model.StringParameterDefinition>
+        <hudson.model.StringParameterDefinition>
+          <name>ROM_Name</name>
+          <defaultValue>wc-i623-os20-sr1069a-i1920x1536p30-mipi-o1920x1080p30.rom</defaultValue>
+          <trim>false</trim>
+        </hudson.model.StringParameterDefinition>
+      </parameterDefinitions>
+    </hudson.model.ParametersDefinitionProperty>
+    
+  </properties>
+  <scm class="hudson.plugins.git.GitSCM" plugin="git@5.0.0">
+    <configVersion>2</configVersion>
+    <userRemoteConfigs>
+      <hudson.plugins.git.UserRemoteConfig>
+        <url>http://bb.local.geosemi.com:7990/scm/sqa/sw-test-automation.git</url>
+        <credentialsId>57817b1b-3c3d-4cfd-9049-78f237a34ecd</credentialsId>
+      </hudson.plugins.git.UserRemoteConfig>
+    </userRemoteConfigs>
+    <branches>
+      <hudson.plugins.git.BranchSpec>
+        <name>${TAF_TAG}</name>
+      </hudson.plugins.git.BranchSpec>
+    </branches>
+    <doGenerateSubmoduleConfigurations>false</doGenerateSubmoduleConfigurations>
+    <submoduleCfg class="empty-list"/>
+    <extensions/>
+  </scm>
+  <assignedNode>otr-sqa001-pc</assignedNode>
+  <canRoam>false</canRoam>
+  <disabled>true</disabled>
+  <blockBuildWhenDownstreamBuilding>false</blockBuildWhenDownstreamBuilding>
+  <blockBuildWhenUpstreamBuilding>false</blockBuildWhenUpstreamBuilding>
+  <authToken>davidz</authToken>
+  <triggers/>
+  <concurrentBuild>false</concurrentBuild>
+  <builders>
+    <hudson.plugins.python.Python plugin="python@1.3">
+      <command>from __future__ import print_function
+
+import sys,os
+import subprocess
+import shutil
+import time
+
+sys.path.append(".")
+os.system("net use /persistent:yes \\\\svmndsa01b /user:lab GeoSemi101")
+
+#
+# Get the Source Code From Version Control Systems (VCS)
+#
+
+# Select the VCS to use.
+GIT = 0
+SVN = 1
+OTHER = 2
+
+VERSION_CONTROL = GIT
+
+workingrootdir = os.getcwd()
+print("Working directory: ", workingrootdir)
+gitpath = r'c:/Program Files/Git/cmd'
+ret = None
+if not os.environ.get('L_Buildtag'):
+    os.environ['L_Buildtag'] = "buildtag.txt"
+
+if VERSION_CONTROL == GIT:
+    PIPE = subprocess.PIPE   
+
+    folderName = 'TAF_Root/Jenkins/TES/Networked/source'
+    folder = 'HEAD:' + folderName
+    files = ['main.py', 'BuildParameters.py', 'globalsDefinitions.py']
+
+    os.chdir(workingrootdir)
+    
+    for file in files:
+        args = ['git.exe', 'checkout', folder, file]
+        try:
+            print("Pull code from git...")
+            process = subprocess.Popen(args, executable="c:/Program Files/Git/cmd/git.exe", stdout=PIPE, stderr=PIPE)
+            stdoutput, stderroutput = process.communicate(input='Geosemi@2020')
+        except Exception as e:
+            print("====================&gt;", e.message, e.args    )
+
+else:
+    #exit()
+    pass
+  
+#
+# Import the main source file and make corresponding calls
+# Skip the test-stages optionally
+#
+
+mount_point = '//geonas/software'
+try:
+    mnt_aval = os.path.isdir(mount_point)
+    if not mnt_aval:
+        #time.sleep(1)
+        os.system(r'net use /user:geosemi\lab \\geonas\software GeoSemi101')
+except IOError as e:
+    print("IOError: " + str(e))
+except Exception as e:
+    print("Exception: " + str(e))
+    
+
+import main
+
+hMain = main.TAFMain(VERSION_CONTROL)
+hMain.validate_test_environment()
+hMain.getToolsPackage()
+
+
+if "Skip Workspace Creation" not in hMain.BuildParameters["Test_Customization"]["Automation Test Flow"]:
+
+    hMain.create_current_workspace()
+    hMain.install_w5com()
+    pass
+    
+hMain.locate_device_index()
+hMain.getTestReferenceFiles()
+hMain.getBuildPackage()
+    
+    
+if "Skip flashing ROM Image" not in hMain.BuildParameters["Test_Customization"]["Automation Test Flow"]:
+    print("Going to Flash the ROM Image ...")
+    hMain.flashFirmware()
+    pass
+    
+if "Skip Test Scripts Download" not in hMain.BuildParameters["Test_Customization"]["Automation Test Flow"]:
+    print("Going to get test cases ...")
+    hMain.getReady_For_Test_Execution()
+    pass
+    
+if "Skip Test Execution" not in hMain.BuildParameters["Test_Customization"]["Automation Test Flow"]:
+    print("Going to get execute test cases ...")
+    ret = hMain.start_Test_Execution()
+    pass
+
+if ret is None:
+    sys.exit("No Testing result within limited time.") 
+      
+if "Skip Test Results Update" not in hMain.BuildParameters["Test_Customization"]["Automation Test Flow"]:
+    print("Going to get update test cases results ...")
+    hMain.upload_testResults()
+    pass
+
+res_file = mount_point + '/TAF/Smoke/testresults/' + os.environ['L_Buildtag']
+rom = hMain.ROMName
+testres = os.path.join(hMain.testReportsPath, 'log.html')
+
+try:
+    if not mnt_aval:
+        os.system(r'net use /user:geosemi\lab \\geonas\software GeoSemi101')
+        
+    with open(res_file, 'a') as f:
+        
+        if ret == 'FAIL': 
+            f.write('\t&lt;tr class="redtext"&gt;\n')
+            f.write("\t\t&lt;td&gt;" + rom + "&lt;/td&gt;\n")
+            f.write('\t\t&lt;td&gt;&lt;a href="file:' + testres + '"&gt;FAIL&lt;/a&gt;&lt;/td&gt;\n')
+            print("One or more Robot test cases failed.")
+        else:
+            f.write('\t&lt;tr&gt;\n')
+            f.write("\t\t&lt;td&gt;" + rom + "&lt;/td&gt;\n")
+            f.write('\t\t&lt;td&gt;&lt;a href="file:' + testres + '"&gt;PASS&lt;/a&gt;&lt;/td&gt;\n')
+            print("All Robot test cases passed!")
+            
+        try:
+            if hMain.passedAfterRetryCount &gt; 0:
+                retryMsg = '({0} test cases passed after retry)'.format(hMain.passedAfterRetryCount)
+                f.write("\t\t&lt;td style=\"color:rgb(0,0,7)\"&gt;" + retryMsg + "&lt;/td&gt;\n")
+        except AttributeError:
+            print("No retry counter returned from main.py")
+            pass
+        except Exception as ex:
+            print(ex)
+            raise
+            
+        f.write("\t&lt;/tr&gt;\n")
+
+
+except IOError as e:
+    print("IOError: " + str(e))
+except Exception as e:
+    print("Exception: " + str(e))
+
+if ret == 'FAIL': 
+    sys.exit("Testing failed.")
+
+
+</command>
+      <configuredLocalRules/>
+    </hudson.plugins.python.Python>
+  </builders>
+  <publishers>
+    <org.jvnet.hudson.plugins.groovypostbuild.GroovyPostbuildRecorder plugin="groovy-postbuild@2.5">
+      <script plugin="script-security@1229.v4880b_b_e905a_6">
+        <script>def buildInfoSummary = ""
+subBuilds = manager.build.getLog()
+
+def subJobName = ""
+def subJobEnv = manager.build.getEnvironment()
+if (subJobEnv.containsKey("ROM_Name") &amp;&amp; subJobEnv["ROM_Name"].length() &gt; 0) {
+	subJobName = subJobEnv["ROM_Name"]
+} else {
+	subJobName = manager.build.jobName
+}
+
+def subBuildInfo = ""
+def matches = manager.build.getLog() =~ /(?m)^\s*\[AdditionalBuildInfo\]\s{0,1}(.*)$/
+matches.each{ groups -&gt; 
+	subBuildInfo &lt;&lt;= "${groups[1]}&lt;br/&gt;"
+}
+if(subBuildInfo.length() &gt; 0) {
+	buildInfoSummary &lt;&lt;= "${subJobName}: &lt;br/&gt;${subBuildInfo}&lt;br/&gt;"
+}
+
+buildInfoSummary = buildInfoSummary.toString()
+
+// If there is additional info, add it to the build page
+if(buildInfoSummary.length() &gt; 0) {
+    def a = manager.createSummary("document.png")
+    a.appendText(buildInfoSummary, false, false, false, "black")
+}
+</script>
+        <sandbox>false</sandbox>
+      </script>
+      <behavior>0</behavior>
+      <runForMatrixParent>false</runForMatrixParent>
+    </org.jvnet.hudson.plugins.groovypostbuild.GroovyPostbuildRecorder>
+    <hudson.plugins.robot.RobotPublisher plugin="robot@3.3.0">
+      <archiveDirName>robot-plugin</archiveDirName>
+      <outputPath>TAF\workspace\Reports</outputPath>
+      <reportFileName>report.html</reportFileName>
+      <logFileName>log.html</logFileName>
+      <outputFileName>Consolidated.xml</outputFileName>
+      <disableArchiveOutput>true</disableArchiveOutput>
+      <passThreshold>0.0</passThreshold>
+      <unstableThreshold>0.0</unstableThreshold>
+      <otherFiles>
+        <string/>
+      </otherFiles>
+      <overwriteXAxisLabel/>
+      <enableCache>true</enableCache>
+      <onlyCritical>true</onlyCritical>
+    </hudson.plugins.robot.RobotPublisher>
+  </publishers>
+  <buildWrappers>
+    <hudson.plugins.ws__cleanup.PreBuildCleanup plugin="ws-cleanup@0.44">
+      <deleteDirs>false</deleteDirs>
+      <cleanupParameter/>
+      <externalDelete/>
+      <disableDeferredWipeout>false</disableDeferredWipeout>
+    </hudson.plugins.ws__cleanup.PreBuildCleanup>
+    <hudson.plugins.timestamper.TimestamperBuildWrapper plugin="timestamper@1.21"/>
+    <hudson.plugins.build__timeout.BuildTimeoutWrapper plugin="build-timeout@1.28">
+      <strategy class="hudson.plugins.build_timeout.impl.AbsoluteTimeOutStrategy">
+        <timeoutMinutes>250</timeoutMinutes>
+      </strategy>
+      <operationList>
+        <hudson.plugins.build__timeout.operations.FailOperation/>
+      </operationList>
+    </hudson.plugins.build__timeout.BuildTimeoutWrapper>
+  </buildWrappers>
+  <pollSubjobs>false</pollSubjobs>
+</com.tikal.jenkins.plugins.multijob.MultiJobProject>
